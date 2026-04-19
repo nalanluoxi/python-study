@@ -1,0 +1,14 @@
+# 大文件忽略
+py/ReadParquetData/data.txt
+
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+
+# IDE
+.idea/
