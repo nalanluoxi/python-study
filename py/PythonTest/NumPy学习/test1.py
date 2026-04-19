@@ -4,6 +4,84 @@ import numpy as np
 def test5():
     #线性代数与一些技巧
     print("---------------------------------")
+    """
+    NumPy 可以实现大量的矩阵操作，例如：
+
+    transpose(a) ：返回矩阵转置
+    eye(n)：创建单位矩阵
+    dot(a, b)：求点积
+    trace(a)：求对角线元素的和
+    linalg中的常用函数：
+    
+    linalg.inv(a)：求逆矩阵
+    linalg.det(a)：求矩阵求行列式（标量）
+    linalg.norm(a)：求矩阵范数（默认L2）
+    linalg.eig(a)：求矩阵特征值和特征向量
+    linalg.solve(a, b)：解线性方程
+    """
+
+#意思：行变列，列变行
+    a = np.array([[1,2],
+                  [3,4]])
+
+    result = np.transpose(a)
+    print(result)
+
+#意思：对角线全 1，其他全 0 的方阵
+    a = np.eye(3)
+    print(a)
+
+#np.dot(a, b) 矩阵点积（矩阵乘法）
+    a = np.array([[1,2],
+                  [3,4]])
+
+    b = np.array([[5,6],
+                  [7,8]])
+
+    result = np.dot(a, b)
+    print(result)
+    print("--------------对角线元素之和")
+    a = np.array([[1,2,3],
+                  [4,5,6],
+                  [7,8,9]])
+
+    result = np.trace(a)
+    print(result)  # 1+5+9 = 15
+    print("---------------------------------linalg 线性代数库")
+    print("---------------------------------np.linalg.inv(a) 求逆矩阵")
+    a = np.array([[1,2],
+                  [3,4]])
+
+    inv_a = np.linalg.inv(a)
+    print(inv_a)
+    print("---------------------------------np.linalg.det(a) 求矩阵行列式")
+    a = np.array([[1,2],
+                  [3,4]])
+    result = np.linalg.det(a)
+    print(result)
+    print("---------------------------------np.linalg.norm(a) 求矩阵范数（长度 / 大小")
+    a = np.array([1,2,3])
+    norm = np.linalg.norm(a)
+    print(norm)  # √(1²+2²+3²)
+    print("---------------------------------np.linalg.eig(a) 求特征值 + 特征向量")
+    a = np.array([[1,2],
+                  [2,1]])
+
+    eigenvalues, eigenvectors = np.linalg.eig(a)
+    print("特征值：", eigenvalues)
+    print("特征向量：\n", eigenvectors)
+    print("---------------------------------np.linalg.solve(a, b) 解线性方程组")
+    # 方程
+    # 1x + 2y = 5
+    # 3x + 4y = 11
+
+    a = np.array([[1,2],
+                  [3,4]])
+
+    b = np.array([5,11])
+
+    x = np.linalg.solve(a, b)
+    print(x)  # [1. 2.]
 
 def test4():
     #索引
@@ -277,7 +355,7 @@ if __name__ == '__main__':
     #test1()
     #test2()
     #test3()
-    test4()
+    #test4()
     test5()
 
 
