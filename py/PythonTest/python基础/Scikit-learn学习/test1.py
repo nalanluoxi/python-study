@@ -2,6 +2,9 @@ import sklearn
 from sklearn import datasets
 from sklearn import svm
 import matplotlib.pyplot as plt
+from joblib import dump, load
+import os
+
 """
 
 Scikit-learn（简称sklearn）是开源的 Python 机器学习库，它基于Numpy和Scipy，包含大量数据挖掘和分析的工具，例如数据预处理、交叉验证、算法与可视化算法等。
@@ -19,9 +22,10 @@ Scikit-learn（简称sklearn）是开源的 Python 机器学习库，它基于Nu
 
 """
 
+
 def test1():
     digits = datasets.load_digits()
-   # print(digits)
+    # print(digits)
     print(digits.data)
     # 训练数据
     print('===========================')
@@ -98,7 +102,7 @@ def test1():
 
 def test3():
     digits = datasets.load_digits()
-    #加载训练数据
+    # 加载训练数据
     clf = svm.SVC(gamma=0.001, C=100.)
     """
     svm.SVC 参数详解         
@@ -116,6 +120,21 @@ def test3():
   - gamma 越大：每个点影响范围越小，决策边界越复杂（过拟合风险）
   - gamma 越小：每个点影响范围越大，决策边界越平滑
   - 也可设为 'scale'（默认）或 'auto'
+
+C=100（严格程度）
+  就像裁判有多严格。
+  - C 很大 →
+  裁判非常严格，绝不允许任何一个球站错边，为此会把线画得弯弯曲曲
+  - C 很小 →
+  裁判比较宽松，偶尔有几个球站错边没关系，但线画得更直、更简洁
+  C=100 说明这个裁判很严格
+
+  gamma=0.001（眼力范围）
+  就像裁判划线时只看附近的球，还是看所有球。
+  - gamma 大 → 裁判只关注身边几个球，容易画出复杂的曲线
+  - gamma 小（0.001）→ 裁判眼界宽，考虑所有球的整体分布，画出的线更平稳
+  gamma=0.001 说明裁判"目光长远"，综合考虑全局
+
 
   ---
   其他常用训练参数
@@ -166,17 +185,31 @@ def test3():
 
 
     """
-    #创建svm分类器
+    # 创建svm分类器
     clf.fit(digits.data, digits.target)
-    #训练数据
-    predict = clf.predict(digits.data[-1:])
-    #预测结果
-    print("预测结果:"+str(predict))
-    print("实际结果:"+str(digits.target[-1]))
-    plt.gray()
-    plt.matshow(digits.images[-1])
-    plt.show()
-
+    # 训练数据
+    i = 5
+    predict = clf.predict(digits.data[0:5])
+    # 设计是批量预测
+    # 预测第一张
+    # 预测结果
+    for t in range(i):
+        print("预测结果:" + str(predict[t]))
+        print("实际结果:" + str(digits.target[t]))
+        plt.gray()
+        plt.matshow(digits.images[t])
+        # plt.show()
+    s="models/filename.joblib"
+    os.makedirs("models",exist_ok=True)
+    #创建文件夹   存在也不报错
+    dump(clf, s)  # 保持此前fit的模型
+    #根据路径保存训练好的模型
+    print(s)
+    clf2 = load(s)  # 加载之前存的模型
+    x = datasets.load_digits()
+    clf__predict = clf2.predict(x.data[0:1])
+    print(clf__predict[0])
+    print(x.target[0])
 
 def test4():
     from sklearn.model_selection import train_test_split
@@ -211,7 +244,6 @@ def test4():
 
 
 def test2():
-
     digits = datasets.load_digits()
 
     # 取出第0张图片
@@ -224,6 +256,6 @@ def test2():
 
 
 if __name__ == '__main__':
-    #test2()
-    #test4()
+    # test2()
+    # test4()
     test3()
