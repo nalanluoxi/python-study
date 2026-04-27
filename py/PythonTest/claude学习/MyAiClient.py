@@ -265,7 +265,7 @@ def agent_main(messagelist):
 
         #todo_need_count=0 if todo_used else todo_need_count+1
         #if todo_need_count > 3:
-
+#
         #    print("需要调用todo工具进行规划")
         #    results.append({"type": "text", "text": "<reminder>更新todo.</reminder>"})
         messagelist.append({"role": "user", "content": results})
