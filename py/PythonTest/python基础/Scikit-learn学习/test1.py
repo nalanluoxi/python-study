@@ -2,6 +2,14 @@ import sklearn
 from sklearn import datasets
 from sklearn import svm
 import matplotlib.pyplot as plt
+from joblib import dump, load
+import os
+import numpy as np
+
+from sklearn.svm import SVC
+from sklearn.multiclass import OneVsRestClassifier
+from sklearn.preprocessing import MultiLabelBinarizer
+
 """
 
 Scikit-learn（简称sklearn）是开源的 Python 机器学习库，它基于Numpy和Scipy，包含大量数据挖掘和分析的工具，例如数据预处理、交叉验证、算法与可视化算法等。
@@ -19,9 +27,104 @@ Scikit-learn（简称sklearn）是开源的 Python 机器学习库，它基于Nu
 
 """
 
+def test6():
+
+    X = [[1, 2], [2, 4], [4, 5], [3, 2], [3, 1]]
+    y = [[0, 1], [0, 2], [1, 3], [0, 2, 3], [2, 4]]
+    #多标签分类
+    y = MultiLabelBinarizer().fit_transform(y)
+    #把多标签转化为二进制矩阵
+
+    classif = OneVsRestClassifier(estimator=SVC(gamma='scale',random_state=0))
+    print(classif.fit(X, y).predict(X))
+
+def test5():
+
+
+    rng = np.random.RandomState(0)
+    #随机数种子设置0
+    X = rng.rand(100, 10)
+    #生成 100行 × 10列 的随机浮点数矩阵，模拟 100 个样本、每个样本 10个特征。
+    print(X)
+
+    y = rng.binomial(1, 0.5, 100)
+    #  生成 100 个标签，每个值是 0 或 1（二项分布，概率各50%），模拟二分类问题的答案。
+
+    X_test = rng.rand(5, 10)
+    #生成 5行 × 10列 的随机数，模拟 5 个新样本用于预测（测试集）。
+
+    clf = SVC()
+    clf.set_params(kernel='linear').fit(X, y) # 默认内核 rbf 被改为 linear
+    clf.predict(X_test)
+
+    clf.set_params(kernel='rbf', gamma='scale').fit(X, y) # 改回到 rbf 重新训练
+    clf.predict(X_test)
+    """"
+    核函数的作用是：把数据映射到更高维空间，使原本线性不可分的数据变得可 
+  分。
+                                                                       
+  ---             
+  四种核函数
+
+  linear 线性核
+
+  数据本身就能用一条直线（或平面）分开：
+  ○ ○ ○ | ● ● ●    ← 一条线就能分开
+  适用场景：
+  - 文本分类（词频特征）
+  - 特征维度很高但样本少
+  - 数据量大时（速度最快）
+
+  ---
+  rbf 径向基核（默认）
+
+  能处理复杂的非线性边界，最常用：
+      ● ● ●
+    ○       ○
+    ○   ●   ○      ← 圆形边界，线性核无法分开
+    ○       ○
+      ○ ○ ○
+  适用场景：
+  - 不知道用什么就用它（万金油）
+  - 数据关系复杂、非线性
+  - 特征维度不太高
+
+  ---
+  poly 多项式核
+
+  用多项式曲线分割数据：
+      ●  ●
+    ○      ○
+   ○        ○     ← 抛物线边界
+  适用场景：
+  - 图像处理
+  - 数据有明显的多项式关系
+  - 用得较少
+
+  ---
+  sigmoid
+
+  模拟神经网络的激活函数：
+
+  适用场景：
+  - 很少用，效果通常不如 rbf
+  - 某些二分类场景
+
+  ---
+  选择建议
+
+  不知道用什么  →  先试 rbf
+  数据量很大    →  linear（速度快）
+  图像/多项式关系 →  poly
+  调参找最优    →  用 GridSearchCV 自动搜索
+
+    
+    """
+
+
 def test1():
     digits = datasets.load_digits()
-   # print(digits)
+    # print(digits)
     print(digits.data)
     # 训练数据
     print('===========================')
@@ -98,9 +201,19 @@ def test1():
 
 def test3():
     digits = datasets.load_digits()
-    #加载训练数据
+    # 加载训练数据
     clf = svm.SVC(gamma=0.001, C=100.)
     """
+    ---
+  SVC(gamma='scale', random_state=0)
+
+  创建一个SVM分类器对象：
+  - gamma='scale' → 自动计算gamma值（推荐写法）
+  - random_state=0 → 固定随机种子，结果可复现
+  - SVC() 本身只是配置，还没有训练，相当于造了一台空白机器
+
+
+    
     svm.SVC 参数详解         
 
   当前使用的参数                                                            
@@ -117,35 +230,61 @@ def test3():
   - gamma 越小：每个点影响范围越大，决策边界越平滑
   - 也可设为 'scale'（默认）或 'auto'
 
+C=100（严格程度）
+  就像裁判有多严格。
+  - C 很大 →
+  裁判非常严格，绝不允许任何一个球站错边，为此会把线画得弯弯曲曲
+  - C 很小 →
+  裁判比较宽松，偶尔有几个球站错边没关系，但线画得更直、更简洁
+  C=100 说明这个裁判很严格
+
+  gamma=0.001（眼力范围）
+  就像裁判划线时只看附近的球，还是看所有球。
+  - gamma 大 → 裁判只关注身边几个球，容易画出复杂的曲线
+  - gamma 小（0.001）→ 裁判眼界宽，考虑所有球的整体分布，画出的线更平稳
+  gamma=0.001 说明裁判"目光长远"，综合考虑全局
+
+
   ---
   其他常用训练参数
 
-  ┌──────────────────────┬───────┬──────────────────────────────────────┐
-  │         参数         │ 默认  │                 说明                 │
-  │                      │  值   │                                      │
-  ├──────────────────────┼───────┼──────────────────────────────────────┤
-  │ kernel               │ 'rbf' │ 核函数：'linear'、'poly'、'rbf'、'si │
-  │                      │       │ gmoid'                               │
-  ├──────────────────────┼───────┼──────────────────────────────────────┤
-  │ degree               │ 3     │ 多项式核（poly）的次数               │
-  ├──────────────────────┼───────┼──────────────────────────────────────┤
-  │ coef0                │ 0.0   │ 核函数的独立项，影响 poly/sigmoid    │
-  ├──────────────────────┼───────┼──────────────────────────────────────┤
-  │ probability          │ False │ 是否启用概率估计（启用后可用         │
-  │                      │       │ predict_proba()）                    │
-  ├──────────────────────┼───────┼──────────────────────────────────────┤
-  │ class_weight         │ None  │ 类别权重，处理样本不均衡，可设       │
-  │                      │       │ 'balanced'                           │
-  ├──────────────────────┼───────┼──────────────────────────────────────┤
-  │ max_iter             │ -1    │ 最大迭代次数，-1 表示不限制          │
-  ├──────────────────────┼───────┼──────────────────────────────────────┤
-  │ tol                  │ 1e-3  │ 迭代停止的容忍误差                   │
-  ├──────────────────────┼───────┼──────────────────────────────────────┤
-  │ random_state         │ None  │ 随机种子，用于结果复现               │
-  ├──────────────────────┼───────┼──────────────────────────────────────┤
-  │ decision_function_sh │ 'ovr' │ 多分类策略：'ovr'（一对多）或        │
-  │ ape                  │       │ 'ovo'（一对一）                      │
-  └──────────────────────┴───────┴──────────────────────────────────────┘
+  ┌─────────────┬─────┬───────────────────┬────────────────────────┐
+  │             │ 默  │                   │                        │
+  │    参数     │ 认  │       说明        │        通俗解释        │
+  │             │ 值  │                   │                        │
+  ├─────────────┼─────┼───────────────────┼────────────────────────┤
+  │             │ 'rb │ 核函数：linear、p │ 划分界线的形状，rbf    │
+  │ kernel      │ f'  │ oly、rbf、sigmoid │ 是曲线最常用，linear   │
+  │             │     │                   │ 是直线                 │
+  ├─────────────┼─────┼───────────────────┼────────────────────────┤
+  │ degree      │ 3   │ 多项式核（poly）  │ 只在 poly 时生效，数字 │
+  │             │     │ 的次数            │ 越大线弯得越复杂       │
+  ├─────────────┼─────┼───────────────────┼────────────────────────┤
+  │ coef0       │ 0.0 │ 核函数的独立项，  │ 曲线的起点偏移量，一般 │
+  │             │     │ 影响 poly/sigmoid │ 不需要动               │
+  ├─────────────┼─────┼───────────────────┼────────────────────────┤
+  │             │ Fal │ 是否启用概率估计  │ 开启后不只说"是A类"，  │
+  │ probability │ se  │ （启用后可用      │ 还会说"是A类的概率87%" │
+  │             │     │ predict_proba()） │                        │
+  ├─────────────┼─────┼───────────────────┼────────────────────────┤
+  │ class_weigh │ Non │ 类别权重，处理样  │ 数据一多一少时，设     │
+  │ t           │ e   │ 本不均衡，可设    │ balanced               │
+  │             │     │ 'balanced'        │ 让模型重视少数类       │
+  ├─────────────┼─────┼───────────────────┼────────────────────────┤
+  │ max_iter    │ -1  │ 最大迭代次数，-1  │ 最多算几轮，-1         │
+  │             │     │ 表示不限制        │ 表示算到收敛为止       │
+  ├─────────────┼─────┼───────────────────┼────────────────────────┤
+  │ tol         │ 1e- │ 迭代停止的容忍误  │ 每轮进步小于此值就停下 │
+  │             │ 3   │ 差                │ ，相当于"差不多就够了" │
+  ├─────────────┼─────┼───────────────────┼────────────────────────┤
+  │ random_stat │ Non │ 随机种子，用于结  │ 设定同一个数字保证每次 │
+  │ e           │ e   │ 果复现            │ 跑出来结果一致         │
+  ├─────────────┼─────┼───────────────────┼────────────────────────┤
+  │ decision_fu │ 'ov │ 多分类策略：ovr（ │ ovr 像循环赛，ovo      │
+  │ nction_shap │ r'  │ 一对多）或        │ 像两两单挑，ovo        │
+  │ e           │     │ ovo（一对一）     │ 更精确但更慢           │
+  └─────────────┴─────┴───────────────────┴────────────────────────┘
+
 
   ---
   选参建议
@@ -166,17 +305,31 @@ def test3():
 
 
     """
-    #创建svm分类器
+    # 创建svm分类器
     clf.fit(digits.data, digits.target)
-    #训练数据
-    predict = clf.predict(digits.data[-1:])
-    #预测结果
-    print("预测结果:"+str(predict))
-    print("实际结果:"+str(digits.target[-1]))
-    plt.gray()
-    plt.matshow(digits.images[-1])
-    plt.show()
-
+    # 训练数据
+    i = 5
+    predict = clf.predict(digits.data[0:5])
+    # 设计是批量预测
+    # 预测第一张
+    # 预测结果
+    for t in range(i):
+        print("预测结果:" + str(predict[t]))
+        print("实际结果:" + str(digits.target[t]))
+        plt.gray()
+        plt.matshow(digits.images[t])
+        # plt.show()
+    s="models/filename.joblib"
+    os.makedirs("models",exist_ok=True)
+    #创建文件夹   存在也不报错
+    dump(clf, s)  # 保持此前fit的模型
+    #根据路径保存训练好的模型
+    print(s)
+    clf2 = load(s)  # 加载之前存的模型
+    x = datasets.load_digits()
+    clf__predict = clf2.predict(x.data[0:1])
+    print(clf__predict[0])
+    print(x.target[0])
 
 def test4():
     from sklearn.model_selection import train_test_split
@@ -211,7 +364,6 @@ def test4():
 
 
 def test2():
-
     digits = datasets.load_digits()
 
     # 取出第0张图片
@@ -224,6 +376,8 @@ def test2():
 
 
 if __name__ == '__main__':
-    #test2()
-    #test4()
-    test3()
+    # test2()
+    # test4()
+    #test3()
+    #test5()
+    test6()
