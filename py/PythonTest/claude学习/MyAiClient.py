@@ -65,7 +65,7 @@ def micro_compact(message: list) -> list:
     tool_result = []
     for mesIndex, msg in enumerate(message):
         if msg["role"] == "user" and isinstance(msg["content"], list):
-            for contIndex, data in enumerate(message["content"]):
+            for contIndex, data in enumerate(msg["content"]):
                 if isinstance(data, dict) and data.get("type") == "tool_result":
                     tool_result.append((mesIndex, contIndex, data))
     if len(tool_result) <= KEEP_MAX_LEN:
@@ -269,7 +269,8 @@ if __name__ == '__main__':
     # print(SYSTEM)
     print('\033[32m北风|>>你好我叫北风\033[32m')
     history = []
-    while True:
+    try:
+      while True:
         try:
             user_input = input("\033[33m用户|>>\033[33m")
         except EOFError:
@@ -286,7 +287,5 @@ if __name__ == '__main__':
                 if hasattr(item, "text"):
                     print("\033[32m北风|>>", item.text)
         print()
-"""
-
-帮我完成一个任务,首先第一步,创建一个文件夹,第二部创建一个hello.py文件,编写python代码输出helloworld!,第三创建一个data.txt文件,里面写上完整[测试文件],第四,创建一个文件step.txt,把你的所有过程计划记录下来.第五,创建一个子代理去扫描整个项目,创建一个projectall.txt,吧项目结构写入
-"""
+    except KeyboardInterrupt:
+        print("\n\033[32m北风|>>Bye!3\033[32m")
