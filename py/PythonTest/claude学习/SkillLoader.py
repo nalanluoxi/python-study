@@ -2,7 +2,12 @@
 from pathlib import Path
 import re
 import yaml
+
+
 class SkillLoader:
+    skills_dir: Path
+    skills: dict[str, dict]
+
     def __init__(self, skills_dir: Path):
         print("skills_dir:", skills_dir)
         self.skills_dir = skills_dir

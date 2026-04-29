@@ -114,6 +114,73 @@ NOMAL_TOOLS = [
             "required": ["name"]
         }
     },
+    {
+        "name": "task_create",
+        "description": "创建一个新的任务",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "subject": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                }
+            },
+            "required": ["subject"]
+        }
+    },
+    {
+        "name": "task_update",
+        "description": "更新修改任务,更新任务状态或依赖项。",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "task_id": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": ["pending", "in_progress", "completed"]
+                },
+                "add_blocked_by": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "remove_blocked_by": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            },
+            "required": ["task_id"]
+        }
+    },
+
+    {
+        "name": "task_get",
+        "description": "通过任务 ID 获取任务的完整详细信息。",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "task_id": {
+                    "type": "integer"}
+            },
+            "required": ["task_id"]
+        }
+    },
+    {
+        "name": "task_get_all",
+        "description": "列出所有任务及状态摘要。",
+        "input_schema": {
+            "type": "object",
+            "properties": {}
+        }
+    },
+
 ]
 
 PARENT_TOOLS = NOMAL_TOOLS + [
