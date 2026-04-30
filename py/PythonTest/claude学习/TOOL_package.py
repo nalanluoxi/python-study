@@ -1,3 +1,4 @@
+from py.PythonTest.claude学习.MessageBus import MessageBus, VALID_MSG_TYPES
 
 NOMAL_TOOLS = [
     {
@@ -180,7 +181,52 @@ NOMAL_TOOLS = [
             "properties": {}
         }
     },
+    {
+        "name": "background_run",
+        "description": "在后台线程中运行命令。立即返回 task_id。",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "command": {
+                    "type": "string"}
+            },
+            "required": ["command"]
+        }
+    },
+    {
+        "name": "check_background",
+        "description": "检查后台任务状态。省略 task_id 可列出所有任务。",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "task_id": {"type": "string"}
+            }
+        }
+    },
+    ]
 
+TEAMMATE_TOOLS = NOMAL_TOOLS + [
+    {
+        "name": "send_message",
+        "description": "发送一个消息给团队的其他成员",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "to": {"type": "string"},
+                "content": {"type": "string"},
+                "msg_type": {
+                    "type": "string",
+                    "enum": list(VALID_MSG_TYPES)}},
+            "required": ["to", "content"]
+        }
+    },
+    {
+        "name": "read_inbox",
+        "description": "阅读并清理你的收件箱.",
+        "input_schema": {
+            "type": "object", "properties": {}
+        }
+    },
 ]
 
 PARENT_TOOLS = NOMAL_TOOLS + [
