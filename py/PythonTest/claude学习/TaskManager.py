@@ -1,4 +1,5 @@
 import json
+import threading
 from pathlib import Path
 
 VALID_STATUSES = ("pending", "in_progress", "completed")
@@ -13,6 +14,7 @@ class TaskManager:
         self.dir = tasks_dir
         self.dir.mkdir(exist_ok=True)
         self.next_task_id = self._max_task_id() + 1
+        self._claim_lock = threading.Lock()
 
     def _max_task_id(self):
         ids = [int(f.stem.split("_")[1]) for f in self.dir.glob(FILE_PATTERN)]
@@ -67,6 +69,32 @@ class TaskManager:
             if completed_id in task.get("blockedBy", []):
                 task["blockedBy"].remove(completed_id)
                 self._save(task)
+
+    def scan_unclaimed(self) -> list:
+        """返回所有可认领的任务：pending、无 owner、无 blockedBy。"""
+        result = []
+        for f in sorted(self.dir.glob(FILE_PATTERN), key=lambda f: int(f.stem.split("_")[1])):
+            task = json.loads(f.read_text())
+            if (task.get("status") == "pending"
+                    and not task.get("owner")
+                    and not task.get("blockedBy")):
+                result.append(task)
+        return result
+
+    def claim(self, task_id: int, owner: str) -> str:
+        """认领任务：设置 owner 和状态为 in_progress。加锁防止多成员同时抢同一任务。"""
+        with self._claim_lock:
+            task = self._load(task_id)
+            if task.get("owner"):
+                return f"Error: 任务 {task_id} 已被 '{task['owner']}' 认领"
+            if task.get("status") != "pending":
+                return f"Error: 任务 {task_id} 状态为 '{task['status']}'，不可认领"
+            if task.get("blockedBy"):
+                return f"Error: 任务 {task_id} 有前置依赖未完成"
+            task["owner"] = owner
+            task["status"] = "in_progress"
+            self._save(task)
+            return self._to_json(task)
 
     def list_all(self) -> str:
         files = sorted(self.dir.glob(FILE_PATTERN), key=lambda f: int(f.stem.split("_")[1]))

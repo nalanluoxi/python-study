@@ -9,10 +9,10 @@ import TOOL_package
 import SkillLoader as SkillLoaderModule
 import TaskManager as TaskManagerModule
 import TodoManager
-from py.PythonTest.claude学习.BackgroudManager import BackGroundManager
-from py.PythonTest.claude学习.MessageBus import MessageBus
-from py.PythonTest.claude学习.TeammateManager import TeammateManager
-from py.PythonTest.claude学习.ToolFunction import ToolFunction
+from BackgroudManager import BackGroundManager
+from MessageBus import MessageBus
+from TeammateManager import TeammateManager
+from ToolFunction import ToolFunction
 
 # ── 环境初始化 ──────────────────────────────────────────────
 load_dotenv(override=True)

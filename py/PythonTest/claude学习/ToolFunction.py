@@ -3,8 +3,7 @@ import subprocess
 import time
 import uuid
 from pathlib import Path
-
-from py.PythonTest.claude学习.MessageBus import MessageBus
+from MessageBus import MessageBus
 
 DANGEROUS_COMMANDS = ["rm -rf /", "sudo", "shutdown", "reboot", "> /dev/"]
 

@@ -1,5 +1,11 @@
-from py.PythonTest.claude学习.MessageBus import MessageBus, VALID_MSG_TYPES
 
+VALID_MSG_TYPES = {
+    "message",
+    "broadcast",
+    "shutdown_request",         # 队长 -> 成员：请求关闭
+    "shutdown_response",        # 成员 -> 队长：回复是否同意关闭
+    "plan_approval_response",   # 队长 -> 成员：回复计划是否批准
+}
 NOMAL_TOOLS = [
     {
         "name": "bash",
@@ -247,6 +253,25 @@ TEAMMATE_TOOLS = NOMAL_TOOLS + [
             "required": ["plan"]
         }
     },
+    {
+        "name": "task_claim",
+        "description": "从任务看板认领一个待处理任务，认领后状态变为 in_progress。task_id 是任务的整数编号。",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "task_id": {"type": "integer", "description": "要认领的任务 ID"}
+            },
+            "required": ["task_id"]
+        }
+    },
+    {
+        "name": "idle",
+        "description": "Signal that you have no more work. Enters idle polling phase.",
+        "input_schema": {
+            "type": "object", "properties": {}
+        }
+    },
+
 ]
 
 PARENT_TOOLS = NOMAL_TOOLS + [
@@ -273,7 +298,7 @@ PARENT_TOOLS = NOMAL_TOOLS + [
     },
     {
         "name": "read_inbox",
-        "description": "阅读并清理你的收件箱。等待成员完成任务时，应调用此工具轮询，而不是 list_teammates。",
+        "description": "阅读并清理你的收件箱。系统会自动注入新消息，无需主动轮询。只在需要查看当前未读消息时调用一次。",
         "input_schema": {"type": "object", "properties": {}}
     },
     {
