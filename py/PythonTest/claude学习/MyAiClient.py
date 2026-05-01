@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 
@@ -9,6 +10,8 @@ import SkillLoader as SkillLoaderModule
 import TaskManager as TaskManagerModule
 import TodoManager
 from py.PythonTest.claude学习.BackgroudManager import BackGroundManager
+from py.PythonTest.claude学习.MessageBus import MessageBus
+from py.PythonTest.claude学习.TeammateManager import TeammateManager
 from py.PythonTest.claude学习.ToolFunction import ToolFunction
 
 # ── 环境初始化 ──────────────────────────────────────────────
@@ -17,10 +20,11 @@ if os.getenv("ANTHROPIC_BASE_URL"):
     os.environ.pop("ANTHROPIC_AUTH_TOKEN", None)
 
 # ── 路径常量 ────────────────────────────────────────────────
-WORKDIR = Path.cwd()
+WORKDIR = Path.cwd() / "work"
+WORKDIR.mkdir(exist_ok=True)
 TRANSCRIPT_DIR = WORKDIR / ".transcripts"
 TASKS_DIR = WORKDIR / ".tasks"
-SKILLS_DIR = (WORKDIR / "skill").resolve()
+SKILLS_DIR = (WORKDIR / "../skill").resolve()
 
 # ── 客户端 & 单例 ───────────────────────────────────────────
 client = Anthropic(base_url=os.getenv("ANTHROPIC_BASE_URL"))
@@ -30,15 +34,18 @@ ToDo = TodoManager.TodoManager()
 skill_loader = SkillLoaderModule.SkillLoader(SKILLS_DIR)
 task_manager = TaskManagerModule.TaskManager(TASKS_DIR)
 BG_manager = BackGroundManager(WORKDIR)
+# 队长邮箱目录：WORKDIR/.bus/lead.jsonl（必须与 TEAM 的 bus_dir 保持一致）
+BUS = MessageBus(WORKDIR / ".bus")
 
 # ── System Prompt ───────────────────────────────────────────
-SYSTEM = f"""你叫北风，你是一个coding ai，在工作目录为 {WORKDIR}. 使用工具去解决问题.
+SYSTEM = f"""你叫北风，你是一个coding ai，是工作目录为 {WORKDIR}的团队负责人,需要负责管理团队成员，并遵守停机和计划审批流程.
+同时需要使用工具去解决问题.
 使用待办工具来规划多步骤任务。在开始前标记为进行中，完成后标记为已完成。优先使用工具而不是文字描述
-你还可以加载skill来处理特殊的业务需求 你可以获取的skill有:{skill_loader.get_skillName()}
-"""
+你还可以加载skill来处理特殊的业务需求 你可以获取的skill有:{skill_loader.get_skillName()}"""
 
 SUBAGENT_SYSTEM = f"""你叫一筒，你是一个coding ai，是工作目录为 {WORKDIR} 编码子代理。完成所给任务，然后总结你的发现。使用工具去解决问题.
-使用待办工具来规划多步骤任务。在开始前标记为进行中，完成后标记为已完成。优先使用工具而不是文字描述"""
+使用待办工具来规划多步骤任务。在开始前标记为进行中，完成后标记为已完成。优先使用工具而不是文字描述
+注意：此系统为 macOS，执行 Python 脚本须使用 python3 命令，不能使用 python。"""
 
 MAX_TOKEN_LEN = 50_000
 
@@ -55,11 +62,26 @@ tool_function = ToolFunction(
     transcript_dir=TRANSCRIPT_DIR,
 )
 
+TEAM = TeammateManager(
+    team_dir=WORKDIR / ".team",       # 成员配置：WORKDIR/.team/config.json
+    bus_dir=WORKDIR / ".bus",         # 消息总线目录（与上方 BUS 必须相同）：WORKDIR/.bus/{name}.jsonl
+    client=client,
+    model=MODEL,
+    workdir=WORKDIR,
+    tool_function=tool_function,
+)
+tool_function.set_team(TEAM)
+
 
 # ── 父 Agent 主循环 ─────────────────────────────────────────
 def agent_main(messagelist: list):
     todo_need_count = 0
     while True:
+        # 读取队长邮箱（成员发来的 shutdown_response / plan_approval_response 等）
+        # 邮箱文件：WORKDIR/.bus/lead.jsonl
+        inbox = BUS.read_inbox("lead")
+        if inbox:
+            messagelist.append({"role": "user", "content": f"<inbox>{json.dumps(inbox, indent=2, ensure_ascii=False)}</inbox>"})
         notifs = BG_manager.drain_notifications()
         if notifs and messagelist:
             notif_text = "\n".join(
@@ -100,11 +122,10 @@ def agent_main(messagelist: list):
             results.append({"type": "tool_result", "tool_use_id": block.id, "content": str(output)})
 
         todo_need_count = 0 if todo_used else todo_need_count + 1
+        messagelist.append({"role": "user", "content": results})
         if todo_need_count > 3:
             print("需要调用todo工具进行规划")
-            results.append({"type": "text", "text": "<reminder>更新todo.</reminder>"})
-
-        messagelist.append({"role": "user", "content": results})
+            messagelist.append({"role": "user", "content": "<reminder>请使用 todo_tool 更新任务进度。</reminder>"})
         if need_compress:
             print("需要压缩")
             messagelist[:] = tool_function.auto_compress(messagelist)
@@ -128,6 +149,12 @@ if __name__ == "__main__":
             elif user_input.strip().lower() == "clear":
                 history = []
                 continue
+            if user_input.strip() == "/team":
+                print(TEAM.list_all())   # 查看团队成员状态
+                continue
+            if user_input.strip() == "/inbox":
+                 print(json.dumps(BUS.read_inbox("lead"), indent=2))  # 查看队长邮箱
+                 continue
 
             history.append({"role": "user", "content": user_input})
             agent_main(history)

@@ -1,6 +1,7 @@
 import json
 import subprocess
 import time
+import uuid
 from pathlib import Path
 
 from py.PythonTest.claude学习.MessageBus import MessageBus
@@ -28,7 +29,7 @@ class ToolFunction:
 
     def __init__(self, workdir: Path, todo, skill_loader, task_manager, bg_manager,
                  client, model: str, subagent_system: str, nomal_tools: list,
-                 transcript_dir: Path, keep_max_len: int = 3,
+                 transcript_dir: Path, bus_dir: Path = None, keep_max_len: int = 3,
                  max_token_len: int = 50_000, preserve_result_tools: set = None):
         self.WORKDIR = workdir
         self.TRANSCRIPT_DIR = transcript_dir
@@ -43,15 +44,17 @@ class ToolFunction:
         self._keep_max_len = keep_max_len
         self._max_token_len = max_token_len
         self._preserve_result_tools = preserve_result_tools or {"read_file"}
+        self._team = None
         self._nomal_handlers = self._build_nomal_handlers()
         self._parent_handlers = self._build_parent_handlers()
+        self.BUS = MessageBus(bus_dir or workdir / ".bus")
 
     # ── 分发表构建 ───────────────────────────────────────────────
     def _build_nomal_handlers(self) -> dict:
         return {
             "bash":             lambda **kw: self._run_bash(kw["command"]),
             "read_file":        lambda **kw: self._run_read(kw["path"], kw.get("limit")),
-            "write_file":       lambda **kw: self._run_write(kw["path"], kw["content"]),
+            "write_file":       lambda **kw: self._run_write(kw["path"], kw.get("content") or kw.get("text") or kw.get("body") or ""),
             "edit_file":        lambda **kw: self._run_edit(kw["path"], kw["old_text"], kw["new_text"]),
             "todo_tool":        lambda **kw: self._todo.update(kw["items"]),
             "load_skill":       lambda **kw: self._skill_loader.get_content(kw["name"]),
@@ -64,10 +67,55 @@ class ToolFunction:
             "check_background": lambda **kw: self._bg_manager.check(kw.get("task_id")),
         }
 
+
+    def handle_shutdown_request(self, teammate: str) -> str:
+        """队长发起关闭请求，写入成员邮箱：WORKDIR/.bus/{teammate}.jsonl"""
+        req_id = str(uuid.uuid4())[:8]
+        with self.BUS._tracker_lock:
+            self.BUS.shutdown_requests[req_id] = {"target": teammate, "status": "pending"}
+        # 发件人: "lead"，收件人: teammate，邮箱文件: WORKDIR/.bus/{teammate}.jsonl
+        self.BUS.send(
+            "lead", teammate, "请正常关机。",
+            "shutdown_request", {"request_id": req_id},
+        )
+        return f"关机请求 {req_id} 发送给 '{teammate}' (status: pending)"
+
+    def handle_plan_review(self, request_id: str, approve: bool, feedback: str = "") -> str:
+        """
+        队长审批成员计划：
+        1. 更新追踪器状态
+        2. 调用 notify_plan_result() 唤醒成员线程（对应 Java: condition.signalAll()）
+        """
+        if not self._team:
+            return "Error: 没有团队实例"
+        with self._team._tracker_lock:
+            req = self._team.plan_requests.get(request_id)
+        if not req:
+            return f"Error: 不存在的请求id '{request_id}'"
+        with self._team._tracker_lock:
+            req["status"] = "approved" if approve else "rejected"
+        self._team.notify_plan_result(request_id, approve, feedback)
+        return f"计划已{'批准' if approve else '拒绝'}，成员 '{req['from']}' 线程已唤醒"
+
+    def _check_shutdown_status(self, request_id: str) -> str:
+        """查询某次关闭请求的当前状态（pending/approved/rejected）。"""
+        with self.BUS._tracker_lock:
+            return json.dumps(self.BUS.shutdown_requests.get(request_id, {"error": "not found"}))
+
+
+    def set_team(self, team):
+        self._team = team
+
     def _build_parent_handlers(self) -> dict:
         return {
             **self._nomal_handlers,
-            "build_child_task": lambda **kw: self.run_subagent(kw["prompt"]),
+            "build_child_task":  lambda **kw: self.run_subagent(kw["prompt"]),
+            "send_message":      lambda **kw: self.BUS.send("lead", kw["to"], kw["content"], kw.get("msg_type", "message")),
+            "read_inbox":        lambda **kw: json.dumps(self.BUS.read_inbox("lead"), ensure_ascii=False),
+            "shutdown_request":  lambda **kw: self.handle_shutdown_request(kw["teammate"]),
+            "plan_approval":     lambda **kw: self.handle_plan_review(kw["request_id"], kw["approve"], kw.get("feedback", "")),
+            "spawn_teammate":    lambda **kw: self._team.spawn(kw["name"], kw["role"], kw["prompt"]),
+            "list_teammates":    lambda **kw: self._team.list_all() if self._team else "No team initialized.",
         }
 
     def dispatch_nomal(self, tool_name: str, args: dict) -> str:
@@ -80,9 +128,10 @@ class ToolFunction:
 
     # ── 安全路径校验 ─────────────────────────────────────────────
     def _safe_path(self, p: str) -> Path:
-        path = (self.WORKDIR / p).resolve()
+        allowed = (self.WORKDIR / "..").resolve()  # claude学习/
+        path = (allowed / p).resolve()
         print(f"路径检查: {path}")
-        if not path.is_relative_to(self.WORKDIR):
+        if not path.is_relative_to(allowed):
             raise ValueError(f"路径越界: {p}")
         return path
 

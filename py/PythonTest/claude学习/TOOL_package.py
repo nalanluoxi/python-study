@@ -112,7 +112,7 @@ NOMAL_TOOLS = [
                     "type": "string",
                     "description": "摘要中应保留哪些内容"}
             },
-            "required": ["name"]
+            "required": []
         }
     },
     {
@@ -195,7 +195,7 @@ NOMAL_TOOLS = [
     },
     {
         "name": "check_background",
-        "description": "检查后台任务状态。省略 task_id 可列出所有任务。",
+        "description": "检查由 background_run 启动的 shell 命令的执行状态。task_id 是 background_run 返回的 8 位随机字符串（如 'a3f9b2c1'），不是成员名称。省略 task_id 可列出所有后台 shell 任务。",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -214,17 +214,37 @@ TEAMMATE_TOOLS = NOMAL_TOOLS + [
             "properties": {
                 "to": {"type": "string"},
                 "content": {"type": "string"},
-                "msg_type": {
-                    "type": "string",
-                    "enum": list(VALID_MSG_TYPES)}},
+                "msg_type": {"type": "string", "enum": list(VALID_MSG_TYPES)}},
             "required": ["to", "content"]
         }
     },
     {
         "name": "read_inbox",
         "description": "阅读并清理你的收件箱.",
+        "input_schema": {"type": "object", "properties": {}}
+    },
+    {
+        "name": "shutdown_response",
+        "description": "响应队长的关闭请求，确认或拒绝关闭。",
         "input_schema": {
-            "type": "object", "properties": {}
+            "type": "object",
+            "properties": {
+                "request_id": {"type": "string"},
+                "approve": {"type": "boolean"},
+                "reason": {"type": "string"}
+            },
+            "required": ["request_id", "approve"]
+        }
+    },
+    {
+        "name": "plan_approval",
+        "description": "向队长提交工作计划，等待审批后再执行重要操作。",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "plan": {"type": "string", "description": "要提交审批的计划内容"}
+            },
+            "required": ["plan"]
         }
     },
 ]
@@ -232,13 +252,71 @@ TEAMMATE_TOOLS = NOMAL_TOOLS + [
 PARENT_TOOLS = NOMAL_TOOLS + [
     {
         "name": "build_child_task",
-        "description": "生成一个具有新上下文的子代理，进行执行任务",
+        "description": "派生一个独立子代理执行单一任务，子代理有全新上下文。prompt 字段填写要执行的具体任务描述，不是任务ID。",
+        "input_schema": {
+            "type": "object",
+            "properties": {"prompt": {"type": "string", "description": "要执行的具体任务描述（自然语言），不是任务ID"}},
+            "required": ["prompt"]
+        }
+    },
+    {
+        "name": "send_message",
+        "description": "向团队成员发送消息",
         "input_schema": {
             "type": "object",
             "properties": {
-                "prompt": {"type": "string"}
+                "to": {"type": "string"},
+                "content": {"type": "string"},
+                "msg_type": {"type": "string", "enum": list(VALID_MSG_TYPES)}},
+            "required": ["to", "content"]
+        }
+    },
+    {
+        "name": "read_inbox",
+        "description": "阅读并清理你的收件箱。等待成员完成任务时，应调用此工具轮询，而不是 list_teammates。",
+        "input_schema": {"type": "object", "properties": {}}
+    },
+    {
+        "name": "shutdown_request",
+        "description": "请求队友正常关闭进程。返回一个用于跟踪的请求 ID。",
+        "input_schema": {
+            "type": "object",
+            "properties": {"teammate": {"type": "string"}},
+            "required": ["teammate"]
+        }
+    },
+    {
+        "name": "plan_approval",
+        "description": "批准或拒绝队友的计划。提供请求 ID + 批准 + 可选反馈。",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "request_id": {"type": "string"},
+                "approve": {"type": "boolean"},
+                "feedback": {"type": "string"}
             },
-            "required": ["prompt",]
+            "required": ["request_id", "approve"]
+        }
+    },
+    {
+        "name": "spawn_teammate",
+        "description": "派生一个新的团队成员，在独立线程中运行。",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name":   {"type": "string", "description": "成员名称"},
+                "role":   {"type": "string", "description": "成员角色"},
+                "prompt": {"type": "string", "description": "分配给成员的初始任务"}
+            },
+            "required": ["name", "role", "prompt"]
+        }
+    },
+    {
+        "name": "list_teammates",
+        "description": "列出所有团队成员及其当前角色和状态（working/idle/shutdown）。注意：成员完成任务后会主动发消息到你的收件箱，不要反复轮询此工具等待状态变化，应改用 read_inbox 等待通知。",
+        "input_schema": {
+            "type": "object",
+            "properties": {}
         }
     },
 ]

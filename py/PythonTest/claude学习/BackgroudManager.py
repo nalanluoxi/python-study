@@ -1,9 +1,11 @@
 import threading
 import subprocess
+import uuid
+from pathlib import Path
 
 class BackGroundManager:
 
-    def __init__(self,workdir:str):
+    def __init__(self, workdir: Path):
         self.tasks={}
         self._notification_queue=[]
         self._lock=threading.Lock()
