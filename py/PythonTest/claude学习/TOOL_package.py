@@ -209,7 +209,78 @@ NOMAL_TOOLS = [
             }
         }
     },
-    ]
+    {
+        "name": "worktree_create",
+        "description": "创建 git worktree，可选绑定到指定任务。",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},        # worktree 名称（同时作为目录名和分支名后缀）
+                "task_id": {"type": "integer"},    # 可选：关联的任务 ID
+                "base_ref": {"type": "string"},    # 可选：基于哪个分支/提交创建（默认 HEAD）
+            },
+            "required": ["name"],
+        },
+    },
+    {
+        "name": "worktree_list",
+        "description": "列出 .worktrees/index.json 中跟踪的所有 worktree。",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "worktree_status",
+        "description": "查看指定 worktree 的 git 状态（文件变更情况）。",
+        "input_schema": {
+            "type": "object",
+            "properties": {"name": {"type": "string"}},
+            "required": ["name"],
+        },
+    },
+    {
+        "name": "worktree_run",
+        "description": "在指定 worktree 目录中执行 shell 命令（适合构建、测试等任务）。",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "command": {"type": "string"},
+            },
+            "required": ["name", "command"],
+        },
+    },
+    {
+        "name": "worktree_remove",
+        "description": "删除 worktree，可选同时将关联任务标记为已完成。",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "force": {"type": "boolean"},        # 可选：强制删除（即使有未提交修改）
+                "complete_task": {"type": "boolean"},# 可选：同时完成关联任务
+            },
+            "required": ["name"],
+        },
+    },
+    {
+        "name": "worktree_keep",
+        "description": "将 worktree 标记为保留状态（不删除目录，只更新索引状态）。",
+        "input_schema": {
+            "type": "object",
+            "properties": {"name": {"type": "string"}},
+            "required": ["name"],
+        },
+    },
+    # ── 事件查询工具 ──────────────────────────────────────────────────────────
+    {
+        "name": "worktree_events",
+        "description": "查看 .worktrees/events.jsonl 中最近的 worktree/任务生命周期事件。",
+        "input_schema": {
+            "type": "object",
+            "properties": {"limit": {"type": "integer"}},  # 可选：返回最近多少条记录
+        },
+    },
+
+]
 
 TEAMMATE_TOOLS = NOMAL_TOOLS + [
     {

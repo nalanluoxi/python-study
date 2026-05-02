@@ -28,8 +28,8 @@ class ToolFunction:
 
     def __init__(self, workdir: Path, todo, skill_loader, task_manager, bg_manager,
                  client, model: str, subagent_system: str, nomal_tools: list,
-                 transcript_dir: Path, bus_dir: Path = None, keep_max_len: int = 3,
-                 max_token_len: int = 50_000, preserve_result_tools: set = None):
+                 transcript_dir: Path, bus: MessageBus = None, keep_max_len: int = 3,
+                 event: object = None, max_token_len: int = 50_000, preserve_result_tools: set = None):
         self.WORKDIR = workdir
         self.TRANSCRIPT_DIR = transcript_dir
         self._todo = todo
@@ -44,9 +44,11 @@ class ToolFunction:
         self._max_token_len = max_token_len
         self._preserve_result_tools = preserve_result_tools or {"read_file"}
         self._team = None
+        self._worktrees = None
+        self.BUS = bus if bus is not None else MessageBus(workdir / ".bus")
+        self.EVENTS = event
         self._nomal_handlers = self._build_nomal_handlers()
         self._parent_handlers = self._build_parent_handlers()
-        self.BUS = MessageBus(bus_dir or workdir / ".bus")
 
     # ── 分发表构建 ───────────────────────────────────────────────
     def _build_nomal_handlers(self) -> dict:
@@ -59,11 +61,12 @@ class ToolFunction:
             "load_skill":       lambda **kw: self._skill_loader.get_content(kw["name"]),
             "compact":          lambda **kw: "请求手动压缩",
             "task_create":      lambda **kw: self._task_manager.create(kw["subject"], kw.get("description", "")),
-            "task_update":      lambda **kw: self._task_manager.update(kw["task_id"], kw.get("status"), kw.get("add_blocked_by"), kw.get("remove_blocked_by")),
+            "task_update":      lambda **kw: self._task_manager.update(kw["task_id"], kw.get("status"), kw.get("owner")),
             "task_get":         lambda **kw: self._task_manager.get(kw["task_id"]),
             "task_get_all":     lambda **kw: self._task_manager.list_all(),
             "background_run":   lambda **kw: self._bg_manager.run(kw["command"]),
             "check_background": lambda **kw: self._bg_manager.check(kw.get("task_id")),
+            "worktree_events":   lambda **kw: self.EVENTS.list_recent(kw.get("limit", 20)) if self.EVENTS else "No events bus.",
         }
 
 
@@ -105,16 +108,27 @@ class ToolFunction:
     def set_team(self, team):
         self._team = team
 
+    def set_worktrees(self, worktrees):
+        self._worktrees = worktrees
+
     def _build_parent_handlers(self) -> dict:
         return {
             **self._nomal_handlers,
-            "build_child_task":  lambda **kw: self.run_subagent(kw["prompt"]),
-            "send_message":      lambda **kw: self.BUS.send("lead", kw["to"], kw["content"], kw.get("msg_type", "message")),
-            "read_inbox":        lambda **kw: json.dumps(self.BUS.read_inbox("lead"), ensure_ascii=False),
-            "shutdown_request":  lambda **kw: self.handle_shutdown_request(kw["teammate"]),
-            "plan_approval":     lambda **kw: self.handle_plan_review(kw["request_id"], kw["approve"], kw.get("feedback", "")),
-            "spawn_teammate":    lambda **kw: self._team.spawn(kw["name"], kw["role"], kw["prompt"]),
-            "list_teammates":    lambda **kw: self._team.list_all() if self._team else "No team initialized.",
+            "build_child_task":    lambda **kw: self.run_subagent(kw["prompt"]),
+            "send_message":        lambda **kw: self.BUS.send("lead", kw["to"], kw["content"], kw.get("msg_type", "message")),
+            "read_inbox":          lambda **kw: json.dumps(self.BUS.read_inbox("lead"), ensure_ascii=False),
+            "shutdown_request":    lambda **kw: self.handle_shutdown_request(kw["teammate"]),
+            "plan_approval":       lambda **kw: self.handle_plan_review(kw["request_id"], kw["approve"], kw.get("feedback", "")),
+            "spawn_teammate":      lambda **kw: self._team.spawn(kw["name"], kw["role"], kw["prompt"]) if self._team else "No team initialized.",
+            "list_teammates":      lambda **kw: self._team.list_all() if self._team else "No team initialized.",
+            # worktree 工具：通过 self._worktrees 延迟访问，与 set_team 同一模式
+            "worktree_create":     lambda **kw: self._worktrees.create(kw["name"], kw.get("task_id"), kw.get("base_ref", "HEAD")) if self._worktrees else "No worktrees initialized.",
+            "worktree_list":       lambda **kw: self._worktrees.list_all() if self._worktrees else "No worktrees initialized.",
+            "worktree_status":     lambda **kw: self._worktrees.status(kw["name"]) if self._worktrees else "No worktrees initialized.",
+            "worktree_run":        lambda **kw: self._worktrees.run(kw["name"], kw["command"]) if self._worktrees else "No worktrees initialized.",
+            "worktree_keep":       lambda **kw: self._worktrees.keep(kw["name"]) if self._worktrees else "No worktrees initialized.",
+            "worktree_remove":     lambda **kw: self._worktrees.remove(kw["name"], kw.get("force", False), kw.get("complete_task", False)) if self._worktrees else "No worktrees initialized.",
+            "worktree_events":     lambda **kw: self._worktrees.events.list_recent(kw.get("limit", 20)) if self._worktrees else "No worktrees initialized.",
         }
 
     def dispatch_nomal(self, tool_name: str, args: dict) -> str:

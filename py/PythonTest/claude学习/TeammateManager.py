@@ -29,19 +29,18 @@ class TeammateManager:
     # 成员提交计划后在 condition 上 wait()，队长审批后 notify_all() 唤醒
     _plan_conditions: dict
 
-    def __init__(self, team_dir: Path, bus_dir: Path, client, model: str, workdir: Path,
+    def __init__(self, team_dir: Path, bus: MessageBus, client, model: str, workdir: Path,
                  tool_function: ToolFunction):
         self.dir = team_dir
         self.dir.mkdir(exist_ok=True)
         self.config_path = self.dir / "config.json"
         self.config = self._load_config()
         self.threads = {}
-        self.BUS = MessageBus(bus_dir)
+        self.BUS = bus
         self.client = client
         self.model = model
         self.workdir = workdir
         self.tool_function = tool_function
-        self._base_handlers = self.tool_function._build_nomal_handlers()
         self._plan_conditions = {}  # { req_id: {"condition": Condition, "result": None|dict} }
 
 
@@ -147,7 +146,7 @@ class TeammateManager:
                 except Exception:
                     self._set_status(name, "idle")
                     return
-                messages.append({"role": "assistant", "content": response.content})
+                messages.append({"role": "assistant", "content": [b.model_dump() for b in response.content]})
                 if response.stop_reason != "tool_use":
                     break  # AI 不再调用工具，退出工作循环进入空闲阶段
                 results = []
@@ -236,8 +235,10 @@ class TeammateManager:
             "task_claim": lambda **kw: self.tool_function._task_manager.claim(kw["task_id"], sender),
             "idle":              lambda **kw: "Lead does not idle.",
         }
-        handler = sender_handlers.get(tool_name) or self._base_handlers.get(tool_name)
-        return handler(**args) if handler else f"Unknown tool: {tool_name}"
+        handler = sender_handlers.get(tool_name)
+        if handler:
+            return handler(**args)
+        return self.tool_function.dispatch_nomal(tool_name, args)
 
     def _extract_req_id(self, output: str) -> str:
         """从工具返回值里提取 request_id=xxxx"""

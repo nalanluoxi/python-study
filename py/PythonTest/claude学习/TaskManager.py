@@ -1,5 +1,6 @@
 import json
 import threading
+import time
 from pathlib import Path
 
 VALID_STATUSES = ("pending", "in_progress", "completed")
@@ -37,31 +38,83 @@ class TaskManager:
 
     def create(self, subject: str, description: str = "") -> str:
         task = {
-            "id": self.next_task_id, "subject": subject, "description": description,
-            "status": "pending", "blockedBy": [], "owner": "",
+            "id": self.next_task_id,
+            "subject": subject,
+            "description": description,
+            "status": "pending",
+            "blockedBy": [],
+            "owner": "",
+            "worktree": "",
+            "created_at": time.time(),
+            "updated_at": time.time(),
         }
         self._save(task)
         self.next_task_id += 1
         return self._to_json(task)
 
+    def exists(self,task_id:int) ->bool:
+        return self._path(task_id).exists()
+
+
+    def _path(self, task_id: int) -> Path:
+        """根据任务 ID 生成对应的文件路径（如 .tasks/task_5.json）。"""
+        return self.dir / f"task_{task_id}.json"
+
     def get(self, task_id: int) -> str:
         return self._to_json(self._load(task_id))
 
-    def update(self, task_id: int, status: str = None,
-               add_blocked_by: list = None, remove_blocked_by: list = None) -> str:
+    def update(self, task_id: int, status: str = None, owner: str = None) -> str:
+
         task = self._load(task_id)
         if status:
-            if status not in VALID_STATUSES:
-                raise ValueError(f"不存在的状态: {status}")
+            if status not in ("pending", "in_progress", "completed"):
+                raise ValueError(f"Invalid status: {status}")
             task["status"] = status
-            if status == "completed":
-                self._clear_dependency(task_id)
-        if add_blocked_by:
-            task["blockedBy"] = list(set(task["blockedBy"] + add_blocked_by))
-        if remove_blocked_by:
-            task["blockedBy"] = [i for i in task["blockedBy"] if i not in remove_blocked_by]
+        if owner is not None:
+            task["owner"] = owner
+        task["updated_at"] = time.time()
         self._save(task)
-        return self._to_json(task)
+        return json.dumps(task, indent=2)
+
+
+    def bind_worktree(self, task_id: int, worktree: str, owner: str = "") -> str:
+        """
+        将任务与一个 worktree 绑定（表示任务在该 worktree 中执行）。
+        绑定后，如果任务还是 pending 状态，自动升级为 in_progress（进行中）。
+        """
+        task = self._load(task_id)
+        task["worktree"] = worktree
+        if owner:
+            task["owner"] = owner
+        if task["status"] == "pending":
+            task["status"] = "in_progress"  # 一旦分配了执行环境，任务就变成"进行中"
+        task["updated_at"] = time.time()
+        self._save(task)
+        return json.dumps(task, indent=2)
+
+    def unbind_worktree(self, task_id: int) -> str:
+        """解除任务与 worktree 的绑定（worktree 被删除时调用）。"""
+        task = self._load(task_id)
+        task["worktree"] = ""  # 清空 worktree 字段
+        task["updated_at"] = time.time()
+        self._save(task)
+        return json.dumps(task, indent=2)
+
+ #   def update(self, task_id: int, status: str = None,
+ #              add_blocked_by: list = None, remove_blocked_by: list = None) -> str:
+ #       task = self._load(task_id)
+ #       if status:
+ #           if status not in VALID_STATUSES:
+ #               raise ValueError(f"不存在的状态: {status}")
+ #           task["status"] = status
+ #           if status == "completed":
+ #               self._clear_dependency(task_id)
+ #       if add_blocked_by:
+ #           task["blockedBy"] = list(set(task["blockedBy"] + add_blocked_by))
+ #       if remove_blocked_by:
+ #           task["blockedBy"] = [i for i in task["blockedBy"] if i not in remove_blocked_by]
+ #       self._save(task)
+ #       return self._to_json(task)
 
     def _clear_dependency(self, completed_id: int):
         for f in self.dir.glob(FILE_PATTERN):

@@ -10,9 +10,11 @@ import SkillLoader as SkillLoaderModule
 import TaskManager as TaskManagerModule
 import TodoManager
 from BackgroudManager import BackGroundManager
+from EventBus import EventBus
 from MessageBus import MessageBus
 from TeammateManager import TeammateManager
 from ToolFunction import ToolFunction
+from WorktreeManager import WorktreeManager, detect_repo_root
 
 # ── 环境初始化 ──────────────────────────────────────────────
 load_dotenv(override=True)
@@ -25,6 +27,8 @@ WORKDIR.mkdir(exist_ok=True)
 TRANSCRIPT_DIR = WORKDIR / ".transcripts"
 TASKS_DIR = WORKDIR / ".tasks"
 SKILLS_DIR = (WORKDIR / "../skill").resolve()
+BUS_DIR = WORKDIR / ".bus"
+TEAM_DIR = WORKDIR / ".team"
 
 # ── 客户端 & 单例 ───────────────────────────────────────────
 client = Anthropic(base_url=os.getenv("ANTHROPIC_BASE_URL"))
@@ -34,8 +38,13 @@ ToDo = TodoManager.TodoManager()
 skill_loader = SkillLoaderModule.SkillLoader(SKILLS_DIR)
 task_manager = TaskManagerModule.TaskManager(TASKS_DIR)
 BG_manager = BackGroundManager(WORKDIR)
-# 队长邮箱目录：WORKDIR/.bus/lead.jsonl（必须与 TEAM 的 bus_dir 保持一致）
-BUS = MessageBus(WORKDIR / ".bus")
+# 队长邮箱目录：WORKDIR/.bus/lead.jsonl（必须与 TEAM 的 bus 保持一致）
+BUS = MessageBus(BUS_DIR)
+
+# ── Worktree 相关 ────────────────────────────────────────────
+REPO_ROOT = detect_repo_root(WORKDIR) or WORKDIR
+EVENTS = EventBus(REPO_ROOT / ".worktrees" / "events.jsonl")
+WORKTREES = WorktreeManager(REPO_ROOT, task_manager, EVENTS)
 
 # ── System Prompt ───────────────────────────────────────────
 SYSTEM = f"""你叫北风，你是一个coding ai，是工作目录为 {WORKDIR}的团队负责人,需要负责管理团队成员，并遵守停机和计划审批流程.
@@ -60,17 +69,20 @@ tool_function = ToolFunction(
     subagent_system=SUBAGENT_SYSTEM,
     nomal_tools=TOOL_package.NOMAL_TOOLS,
     transcript_dir=TRANSCRIPT_DIR,
+    bus=BUS,
+    event=EVENTS,
 )
 
 TEAM = TeammateManager(
-    team_dir=WORKDIR / ".team",       # 成员配置：WORKDIR/.team/config.json
-    bus_dir=WORKDIR / ".bus",         # 消息总线目录（与上方 BUS 必须相同）：WORKDIR/.bus/{name}.jsonl
+    team_dir=TEAM_DIR,
+    bus=BUS,
     client=client,
     model=MODEL,
     workdir=WORKDIR,
     tool_function=tool_function,
 )
 tool_function.set_team(TEAM)
+tool_function.set_worktrees(WORKTREES)
 
 
 # ── 父 Agent 主循环 ─────────────────────────────────────────
@@ -134,6 +146,9 @@ def agent_main(messagelist: list):
 
 # ── 入口 ────────────────────────────────────────────────────
 if __name__ == "__main__":
+    print(f"Repo root: {REPO_ROOT}")
+    if not WORKTREES.git_available:
+        print("注意：当前不在 git 仓库中，worktree_* 工具将返回错误。")
     print("\033[32m北风|>> 你好我叫北风\033[0m")
     history = []
     try:
@@ -143,7 +158,7 @@ if __name__ == "__main__":
             except EOFError:
                 print(f"\033[32m北风|>> 出现错误 {EOFError}\033[0m")
                 break
-            if user_input.strip().lower() in ("q",  "exit"):
+            if user_input.strip().lower() in ("q", "exit"):
                 print("\033[32m北风|>> Bye!\033[0m")
                 break
             elif user_input.strip().lower() == "clear":
@@ -153,8 +168,8 @@ if __name__ == "__main__":
                 print(TEAM.list_all())   # 查看团队成员状态
                 continue
             if user_input.strip() == "/inbox":
-                 print(json.dumps(BUS.read_inbox("lead"), indent=2))  # 查看队长邮箱
-                 continue
+                print(json.dumps(BUS.read_inbox("lead"), indent=2))  # 查看队长邮箱
+                continue
 
             history.append({"role": "user", "content": user_input})
             agent_main(history)
